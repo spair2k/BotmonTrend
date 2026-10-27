@@ -365,6 +365,11 @@ namespace BotmonTrend
                 "Write the measured distances, trend and bearing decisions to the BepInEx log once per "
                     + "second. Useful when the arrows do not behave as expected.", 10);
 
+            // not a setting: a plain entry carrying the project page, visible in the menu and in
+            // the cfg file, so anyone who opens either one can find the repository
+            Ordered(config, "About", "Repository", "https://github.com/spair2k/BotmonTrend",
+                "Project page on GitHub: releases, source, issues.", 10);
+
             SyncStyleDropdowns();
 
             BearingStyle.SettingChanged += (_, __) => ApplyBearingStyle();

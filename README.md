@@ -64,7 +64,9 @@ the process memory, `spt-debugging.dll` on disk is never touched.
 
 ## Settings (F12 → Botmon Trend)
 
-Sections in menu order: `Distance → Tags → Trend → Arrows → Bearing → Proximity → Debug`.
+Sections in menu order: `Distance → Tags → Trend → Arrows → Bearing → Proximity → Debug → About`.
+The last one is not a setting: it carries the link to the project page, also written into the
+config file.
 
 Glyph styles are two dropdowns instead of many text fields: `Bearing/Style` for the eight
 directions and `Arrows/Style` for the trend pair. Picking a preset writes the glyphs into the
@@ -108,6 +110,7 @@ the movement-refresh threshold of the bearing arrow and the colored rank markers
 | Proximity | `CloseDistanceMeters` | `10` | the proximity threshold |
 | Proximity | `CloseColor` | `#FFD93B` | color of the brackets for a close bot |
 | Debug | `LogMeasurements` | `false` | log measured distance, trend and bearing decisions once per second (`[botpos-diag]`) |
+| About | `Repository` | link | project page on GitHub, kept in the config file for reference |
 
 ## How it works
 
