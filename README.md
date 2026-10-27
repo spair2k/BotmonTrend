@@ -62,6 +62,9 @@ BepInEx\plugins\BotmonTrend.dll
 Requires `spt-debugging.dll` (shipped with SP Tushonka). Nothing else is modified: the patch lives only in
 the process memory, `spt-debugging.dll` on disk is never touched.
 
+VirusTotal report for the release archive:
+https://www.virustotal.com/gui/file/963500a7bc614f053b28c219104a649496a0410bd86a46bf0aef5d7142914017
+
 ## Settings (F12 → Botmon Trend)
 
 Sections in menu order: `Distance → Tags → Trend → Arrows → Bearing → Proximity → Debug → About`.
