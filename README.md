@@ -63,7 +63,7 @@ Requires `spt-debugging.dll` (shipped with SP Tushonka). Nothing else is modifie
 the process memory, `spt-debugging.dll` on disk is never touched.
 
 VirusTotal report for the release archive:
-https://www.virustotal.com/gui/file/963500a7bc614f053b28c219104a649496a0410bd86a46bf0aef5d7142914017
+https://www.virustotal.com/gui/file/a9e36fd7467e9ebda3a8210d8358ad6b8fa42553fd461e15cd4c6298ba83434a
 
 ## Settings (F12 → Botmon Trend)
 
@@ -113,7 +113,7 @@ the movement-refresh threshold of the bearing arrow and the colored rank markers
 | Proximity | `CloseDistanceMeters` | `10` | the proximity threshold |
 | Proximity | `CloseColor` | `#FFD93B` | color of the brackets for a close bot |
 | Debug | `LogMeasurements` | `false` | log measured distance, trend and bearing decisions once per second (`[botpos-diag]`) |
-| About | `Repository` | link | project page on GitHub, kept in the config file for reference |
+| About | `Repository` | link | browser-style link to the project page; clicking it opens the page, the URL is also kept in the config file for reference |
 
 ## How it works
 

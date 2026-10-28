@@ -24,7 +24,7 @@ namespace BotmonTrend
     {
         public const string Guid = "com.q8b1q.botmontrend";
         public const string Name = "Botmon Trend";
-        public const string Version = "1.4.1";
+        public const string Version = "1.4.2";
 
         internal const string DebuggingPluginGuid = "com.SPT.debugging";
         internal const string BotmonitorScriptTypeName = "SPT.Debugging.Scripts.BotmonitorScript";
@@ -365,10 +365,10 @@ namespace BotmonTrend
                 "Write the measured distances, trend and bearing decisions to the BepInEx log once per "
                     + "second. Useful when the arrows do not behave as expected.", 10);
 
-            // not a setting: a plain entry carrying the project page, visible in the menu and in
-            // the cfg file, so anyone who opens either one can find the repository
-            Ordered(config, "About", "Repository", "https://github.com/spair2k/BotmonTrend",
-                "Project page on GitHub: releases, source, issues.", 10);
+            // not a setting: the project page drawn as a browser-style link; clicking it opens the
+            // page, and the URL stays in the cfg file, so anyone who opens it can find the repository
+            Link(config, "About", "Repository", "https://github.com/spair2k/BotmonTrend",
+                "Project page on GitHub: releases, source, issues. Click to open.", 10);
 
             SyncStyleDropdowns();
 
@@ -576,6 +576,31 @@ namespace BotmonTrend
             }
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
+        }
+
+        // a browser-style link instead of an editable field: the URL is hardcoded into the drawer,
+        // drawn blue like a web link; clicking it opens the page. The value still lands in the cfg
+        // file, so the repository stays discoverable there too
+        private static ConfigEntry<string> Link(ConfigFile config, string section, string key, string url,
+            string description, int order)
+        {
+            return config.Bind(section, key, url,
+                new ConfigDescription(description, null,
+                    new ConfigurationManagerAttributes { Order = order, CustomDrawer = _ => DrawHyperlink(url) }));
+        }
+
+        // a button styled as a plain label, colored like a link in a browser
+        private static void DrawHyperlink(string url)
+        {
+            var oldColor = GUI.color;
+            GUI.color = new Color32(0x33, 0x99, 0xFF, 0xFF);
+            var linkStyle = new GUIStyle(GUI.skin.label) { stretchWidth = false, wordWrap = false };
+            if (GUILayout.Button(url, linkStyle))
+            {
+                Application.OpenURL(url);
+            }
+
+            GUI.color = oldColor;
         }
 
         // a setting that keeps working but does not show up in the manager menu: the individual

@@ -6,7 +6,7 @@
     <RootNamespace>BotmonTrend</RootNamespace>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <Version>1.4.1</Version>
+    <Version>1.4.2</Version>
     <DebugType>none</DebugType>
     <GamePath Condition="'$(GamePath)' == ''">d:\spt4</GamePath>
     <!-- the managed assemblies live in the game data folder, located by mask so the path
