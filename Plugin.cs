@@ -24,7 +24,7 @@ namespace BotmonTrend
     {
         public const string Guid = "com.q8b1q.botmontrend";
         public const string Name = "Botmon Trend";
-        public const string Version = "1.4.2";
+        public const string Version = "1.4.3";
 
         internal const string DebuggingPluginGuid = "com.SPT.debugging";
         internal const string BotmonitorScriptTypeName = "SPT.Debugging.Scripts.BotmonitorScript";
@@ -642,6 +642,7 @@ namespace BotmonTrend
             public string Id;
             public Vector3 Position;
             public int Pass = -1;
+            public object Source;
         }
 
         // harmony prefix on BotmonitorScript.OnGUI. positions are refreshed once per frame, while
@@ -683,11 +684,20 @@ namespace BotmonTrend
                     return;
                 }
 
+                // top up the overlay's bot registry first, so the stock renderer and this snapshot
+                // both see the complete set of alive bots this frame
+                SyncBotList(__instance);
+
                 if (!TryReadBots(__instance, out var zones))
                 {
-                    Clear();
-                    NoteDataUnavailable("bot positions");
-                    return;
+                    // the overlay registry came up empty or unreadable: fall back to the game's own
+                    // alive list, which is independent of the overlay's bookkeeping
+                    if (!TryReadAllBots(out zones))
+                    {
+                        Clear();
+                        NoteDataUnavailable("bot positions");
+                        return;
+                    }
                 }
 
                 _botsByZone = zones;
@@ -791,6 +801,268 @@ namespace BotmonTrend
 
             zones = result;
             return true;
+        }
+
+        // every bot GameWorld currently tracks, alive only, keyed by its BotZone name. this walks
+        // the game's own player lists instead of the overlay's registry: the overlay adds a bot on
+        // OnBotCreated and removes it on OnBotRemoved, but a freshly spawned bot is not guaranteed
+        // to have fired the callback yet, so a zone can miss a bot that is already alive on the map.
+        // the sync is two-way: it also drops dead or detached entries, because after a botmon 0/1
+        // cycle the recreated script can hold stale references the stock renderer chokes on
+        private static void SyncBotList(object script)
+        {
+            try
+            {
+                var dict = ReflectionUtil.Read(script, "_zoneAndPlayers") as IDictionary;
+                if (dict == null || !TryReadAllBots(out var zones))
+                {
+                    return;
+                }
+
+                foreach (DictionaryEntry entry in dict)
+                {
+                    var zone = entry.Key as string;
+                    if (zone == null || entry.Value is not IList list)
+                    {
+                        continue;
+                    }
+
+                    var liveIds = zones.TryGetValue(zone, out var live) ? live : null;
+                    var liveIdSet = new HashSet<string>(StringComparer.Ordinal);
+                    if (liveIds != null)
+                    {
+                        foreach (var bot in liveIds)
+                        {
+                            liveIdSet.Add(bot.Id);
+                        }
+                    }
+
+                    // drop entries that are no longer alive bots: a stale Player reference makes the
+                    // stock renderer throw inside its own First(...) call and the panel goes blank
+                    for (var i = list.Count - 1; i >= 0; i--)
+                    {
+                        var existing = list[i];
+                        var id = ReflectionUtil.Read(existing, "ProfileId") as string;
+
+                        var alive = existing != null && ReflectionUtil.IsAlive(existing);
+                        var knownRole = true;
+
+                        if (alive && !string.IsNullOrEmpty(id))
+                        {
+                            var roles = ReflectionUtil.Read(script, "_playerRoleAndDiff") as IDictionary;
+                            knownRole = roles != null && roles.Contains(id);
+                        }
+
+                        if (!alive || string.IsNullOrEmpty(id) || !liveIdSet.Contains(id) || !knownRole)
+                        {
+                            list.RemoveAt(i);
+                            continue;
+                        }
+
+                        // a bot the overlay does not know yet: register its role first, so the
+                        // stock First(...) lookup never throws on an unknown ProfileId
+                        if (liveIds != null)
+                        {
+                            var fresh = liveIds.Find(b => b.Id == id);
+                            RegisterRole(script, fresh);
+                        }
+                    }
+
+                    // top the zone up with alive bots the overlay has not seen yet
+                    if (liveIds == null)
+                    {
+                        continue;
+                    }
+
+                    var currentIds = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var existing in list)
+                    {
+                        var id = ReflectionUtil.Read(existing, "ProfileId") as string;
+                        if (!string.IsNullOrEmpty(id))
+                        {
+                            currentIds.Add(id);
+                        }
+                    }
+
+                    foreach (var bot in liveIds)
+                    {
+                        if (currentIds.Contains(bot.Id) || bot.Source == null)
+                        {
+                            continue;
+                        }
+
+                        RegisterRole(script, bot);
+                        list.Add(bot.Source);
+                        currentIds.Add(bot.Id);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("Bot list sync failed: " + ex.Message);
+            }
+        }
+
+        // mirror of BotmonitorScript.GetBotRoleAndDiffClass: every ProfileId the stock renderer
+        // meets in _zoneAndPlayers must exist in _playerRoleAndDiff, or its First(...) lookup
+        // throws and the whole panel stops drawing
+        private static void RegisterRole(object script, Bot bot)
+        {
+            if (bot?.Source == null)
+            {
+                return;
+            }
+
+            var roles = ReflectionUtil.Read(script, "_playerRoleAndDiff") as IDictionary;
+            if (roles == null || roles.Contains(bot.Id))
+            {
+                return;
+            }
+
+            try
+            {
+                var profile = ReflectionUtil.Read(bot.Source, "Profile") ?? ReflectionUtil.Read(bot.Source, "Profile", "Info");
+                var settings = ReflectionUtil.Read(profile, "Info", "Settings") ?? ReflectionUtil.Read(profile, "Settings");
+                if (settings == null)
+                {
+                    return;
+                }
+
+                var roleType = FindType("SPT.Debugging.Scripts.BotRoleAndDiffClass");
+                if (roleType == null)
+                {
+                    return;
+                }
+
+                var role = ReflectionUtil.Read(settings, "Role")?.ToString() ?? string.Empty;
+                var difficulty = ReflectionUtil.Read(settings, "BotDifficulty")?.ToString() ?? string.Empty;
+
+                var ctor = roleType.GetConstructor(new[] { typeof(string), typeof(string) });
+                if (ctor == null)
+                {
+                    return;
+                }
+
+                roles[bot.Id] = ctor.Invoke(new[] { role, difficulty });
+            }
+            catch (Exception ex)
+            {
+                WarnOnce("Role registration failed: " + ex.Message);
+            }
+        }
+
+        private static bool TryReadAllBots(out Dictionary<string, List<Bot>> zones)
+        {
+            zones = null;
+
+            var singletonType = FindType("Comfort.Common.Singleton`1");
+            var gameWorldType = FindType("EFT.GameWorld");
+            if (singletonType == null || gameWorldType == null)
+            {
+                return false;
+            }
+
+            object gameWorldInstance = null;
+            try
+            {
+                var instanceMethod = singletonType.MakeGenericType(gameWorldType)
+                    .GetMethod("get_Instance", BindingFlags.Public | BindingFlags.Static);
+                gameWorldInstance = instanceMethod?.Invoke(null, null);
+            }
+            catch (Exception)
+            {
+                gameWorldInstance = null;
+            }
+
+            if (gameWorldInstance == null)
+            {
+                return false;
+            }
+
+            // AllAlivePlayersList holds every alive player object, local player included; the
+            // BotZone name comes from the bot's own AIData group
+            if (ReflectionUtil.Read(gameWorldInstance, "AllAlivePlayersList") is not IEnumerable players)
+            {
+                return false;
+            }
+
+            var result = new Dictionary<string, List<Bot>>(StringComparer.Ordinal);
+            var index = 0;
+
+            foreach (var bot in players)
+            {
+                index++;
+
+                if (bot == null)
+                {
+                    continue;
+                }
+
+                // the local player is not a bot and never shows in the overlay
+                if (ReflectionUtil.Read(bot, "IsYourPlayer") is bool yours && yours)
+                {
+                    continue;
+                }
+
+                if (!ReflectionUtil.IsAlive(bot))
+                {
+                    continue;
+                }
+
+                if (!ReflectionUtil.TryGetPosition(bot, out var position))
+                {
+                    continue;
+                }
+
+                var zone = ResolveZoneName(bot) ?? "Unknown zone";
+                var id = ReflectionUtil.Read(bot, "ProfileId") as string;
+
+                if (!result.TryGetValue(zone, out var list))
+                {
+                    list = new List<Bot>();
+                    result[zone] = list;
+                }
+
+                list.Add(new Bot
+                {
+                    Id = string.IsNullOrEmpty(id) ? zone + "#" + index.ToString(CultureInfo.InvariantCulture) : id,
+                    Position = position,
+                    Source = bot,
+                });
+            }
+
+            zones = result;
+            return true;
+        }
+
+        // the BotZone of a bot: AIData.BotOwner.BotsGroup.BotZone.NameZone, guarded at every step
+        private static string ResolveZoneName(object bot)
+        {
+            var name = ReflectionUtil.Read(bot, "AIData", "BotOwner", "BotsGroup", "BotZone", "NameZone") as string;
+            return string.IsNullOrEmpty(name) ? null : name;
+        }
+
+        private static Type FindType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type type;
+                try
+                {
+                    type = assembly.GetType(fullName);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+
+            return null;
         }
 
         private static void NoteDataUnavailable(string what)
