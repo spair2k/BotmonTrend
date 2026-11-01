@@ -11,12 +11,16 @@
     <!-- MIT License, Q8b1Q@ya.ru (c) 2026 -->
     <AssemblyInformationalVersion>1.4.2 (MIT) Q8b1Q@ya.ru (c) 2026</AssemblyInformationalVersion>
 
-    <!-- game data dirs resolved at build time -->
-    <GamePath Condition="'$(GamePath)' == ''">d:\spt4</GamePath>
-    <DataDirs>$([System.IO.Directory]::GetDirectories('$(GamePath)', '*_Data'))</DataDirs>
-    <GameDataDir>$([System.String]::Copy('$(DataDirs)').Split(';')[0])</GameDataDir>
+    <!-- the game root: the folder that contains BepInEx and EscapeFromTarkov.exe.
+         pass it on the command line: dotnet build -p:GamePath="C:\path\to\your SPT folder" -->
+    <DataDirs Condition="'$(GamePath)' != ''">$([System.IO.Directory]::GetDirectories('$(GamePath)', '*_Data'))</DataDirs>
+    <GameDataDir Condition="'$(DataDirs)' != ''">$([System.String]::Copy('$(DataDirs)').Split(';')[0])</GameDataDir>
     <ManagedDir>$(GameDataDir)\Managed</ManagedDir>
   </PropertyGroup>
+
+  <Target Name="EnsureGamePath" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(GamePath)' == ''" Text="GamePath is required. Pass the game root (the folder that contains BepInEx and EscapeFromTarkov.exe): dotnet build -p:GamePath=&quot;C:\path\to\your SPT folder&quot;" />
+  </Target>
 
   <ItemGroup>
     <Reference Include="BepInEx">
